@@ -373,7 +373,7 @@ def data_save(save_path, name, site, task, ele, rad, data, num_ele = 11, num_rad
 
 #%%
 if __name__ == "__main__":
-    path = "20170803/SY/"
+    path = "20180716/SY/"
     files = os.listdir(path)
     save_path = 'npy'
     if save_path not in files:
@@ -383,8 +383,8 @@ if __name__ == "__main__":
         save_path = path+'npy/'
         print('save_path is made')
     
-    for f in files[:2]:
+    for f in files[:10]:
         if f.endswith(".AR2"):
             site, task, ele, rad, data=MetSTARDataReader(path+f)
-        #     name = "_".join(f.split(".")[:-1])
-        #     data_save(save_path, name, site, task, ele, rad, data)
+    #         name = "_".join(f.split(".")[:-1])
+    #         data_save(save_path, name, site, task, ele, rad, data)
