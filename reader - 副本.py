@@ -1,11 +1,14 @@
 import os
+import datetime
+import bz2
+import pandas as pd
 import numpy as np
-import netCDF4 as nc
+# import netCDF4 as nc
 import warnings
 warnings.filterwarnings("ignore")
 #%%
 
-def metstar_readar(dta_path):
+def MetSTARDataReader(dta_path):
     '''
     reader for MetSTAR (敏视达)
         finished by Xuejian and Ruidong 
@@ -294,10 +297,13 @@ def metstar_readar(dta_path):
             break
 
     return siteinfo, taskinfo, eleinfo, radinfo, f
+#%%
+'''
 
-def metstar_saver(save_path, save_name, site, task, ele, rad, data, num_ele = 11, num_rad = 360, num_gate = 1000):
+'''
+def data_save(save_path, name, site, task, ele, rad, data, num_ele = 11, num_rad = 360, num_gate = 1000):
     '''
-    saver for MetSTAR (敏视达) in '.nc'
+    save data in ".npy" form
         finished by Ruiyang
     '''
     
@@ -316,14 +322,13 @@ def metstar_saver(save_path, save_name, site, task, ele, rad, data, num_ele = 11
         if flg1 == {} or flg2 == {} or flg3 == {} :
             ele += 1
             continue
-        
-        
         # 获取方位角
         azi = np.array(rad[str(ele_id)]['azi'])
         # 对方位角排序
         rank = np.argsort(azi)
         # 四舍五入取整方位角
         azi = np.round(azi[rank]).astype(np.int)
+        
         # 计数器：应该有360个方位角
         c = np.zeros(num_rad)
         # 先获取数据
@@ -359,46 +364,27 @@ def metstar_saver(save_path, save_name, site, task, ele, rad, data, num_ele = 11
             c[radial] += 1
         ele += 1
    
-    fnc = nc.Dataset(save_path+save_name+'.nc', 'a')
-    fnc.site_name = site['name']
-    fnc.site_code = site['code']
-    fnc.lon = site['lon']
-    fnc.lat = site['lat']
-    fnc.h_base = site['baseasl']
-    fnc.h_atenna = site['atennaasl']
-    fnc.beam_width_h = site['beamhwidth']
-    fnc.beam_width_v = site['beamvwidth']
-    fnc.freq = site['freq']
     
-    fnc.createDimension('ele', num_ele)
-    fnc.createDimension('azi', num_rad)
-    fnc.createDimension('gate', num_gate)
-    
-    fnc.createVariable('zh', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['zh'][:] = zh
-    fnc.createVariable('zdr', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['zdr'][:] = zdr
-    fnc.createVariable('phidp', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['phidp'][:] = phidp
-    fnc.createVariable('cc', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['cc'][:] = cc
-
-    fnc.close()
+    np.save(save_path+name+"_zh", zh)
+    np.save(save_path+name+"_zdr", zdr)
+    np.save(save_path+name+"_phidp", phidp)
+    np.save(save_path+name+"_cc", cc)
+        
 
 #%%
 if __name__ == "__main__":
     path = "20180716/SY/"
     files = os.listdir(path)
-    save_path = 'nc'
+    save_path = 'npy'
     if save_path not in files:
-        save_path = os.mkdir(path+'nc')
+        save_path = os.mkdir(path+'npy')
         print('made new save_path')
     else:
-        save_path = path+'nc/'
+        save_path = path+'npy/'
         print('save_path is made')
     
-    for f in files[10:]:
+    for f in files[:10]:
         if f.endswith(".AR2"):
-            site, task, ele, rad, data=metstar_readar(path+f)
-            save_name = "_".join(f.split(".")[:-1])
-            metstar_saver(save_path, save_name, site, task, ele, rad, data)
+            site, task, ele, rad, data=MetSTARDataReader(path+f)
+    #         name = "_".join(f.split(".")[:-1])
+    #         data_save(save_path, name, site, task, ele, rad, data)
