@@ -42,18 +42,21 @@ def ppi(data, prv, r):
 
 
 if __name__ == "__main__":
-    fnc = nc.Dataset('20180716/SY/nc/BJXSY_20180716_000000.nc', 'r')
-    zh = np.array(fnc.variables['zh'])[2]
-    zdr = np.array(fnc.variables['zdr'])[2]
-    phidp = np.array(fnc.variables['phidp'])[2]
-    cc = np.array(fnc.variables['cc'])[2]
+    # fnc = nc.Dataset('20180716/SY/nc/BJXSY_20180716_000000.nc', 'r')
+    # zh = np.array(fnc.variables['zh'])[2]
+    # zdr = np.array(fnc.variables['zdr'])[2]
+    # phidp = np.array(fnc.variables['phidp'])[2]
+    # cc = np.array(fnc.variables['cc'])[2]
+    # fnc.close()
     
+    fnc = nc.Dataset('20180716/SA/nc/Z_RADR_I_Z9010_20180716013600_O_DOR_SA_CAP.nc', 'r')
+    zh = np.array(fnc.variables['zh'])[1][:, :230]
     fnc.close()
     
-    # ppi(zh, prv = 'zh', r = np.arange(1, 1001)*0.075)
+    ppi(zh, prv = 'zh', r = np.arange(1, 231)*1)
     # ppi(zdr, prv = 'zdr', r = np.arange(1, 1001)*0.075)
-    ppi(phidp, prv = 'phidp', r = np.arange(1, 1001)*0.075)
+    # ppi(phidp, prv = 'phidp', r = np.arange(1, 1001)*0.075)
     # ppi(cc, prv = 'cc', r = np.arange(1, 1001)*0.075)
     
-    phidp_lp = np.load('20180716/SY/phidp_3_lp/BJXSY_20180716_000000_phidp_3_lp.npy')
-    ppi(phidp_lp, prv = 'phidp', r = np.arange(1, 1001)*0.075)
+    # phidp_lp = np.load('20180716/SY/phidp_3_lp/BJXSY_20180716_000000_phidp_3_lp.npy')
+    # ppi(phidp_lp, prv = 'phidp', r = np.arange(1, 1001)*0.075)
