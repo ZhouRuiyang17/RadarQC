@@ -539,7 +539,7 @@ def sa(path, save_path, f):
 
 #%%
 if __name__ == "__main__":
-    path = "20180716/SA/"
+    path = "20180716/SY/"
     files = os.listdir(path)
     save_path = 'nc'
     if save_path not in files:
@@ -550,7 +550,7 @@ if __name__ == "__main__":
         print('save_path is made')
     
     for f in files[2:]:
-        # if f.endswith(".AR2"):
-            # metstar(path, save_path, f)
-        if f.endswith('.bin'):
-            sa(path, save_path, f)
+        if f.endswith(".AR2"):
+            metstar(path, save_path, f)
+        # if f.endswith('.bin'):
+            # sa(path, save_path, f)

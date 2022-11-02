@@ -6,7 +6,7 @@ import matplotlib.colors as colors
 import netCDF4 as nc
 
 
-def ppi(data, prv, r):
+def ppi(data, prv, r=None):
     color = np.array([[0, 0, 255], [30, 144, 255], [0, 255, 255], 
                       [0, 255, 0], [0, 205, 0], [0, 139, 0], 
                       [255, 255, 0], [205, 173, 0], [255, 165, 0],
@@ -32,7 +32,7 @@ def ppi(data, prv, r):
     
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax, pm = wl.vis.plot_ppi(data, r = r, ax = ax, cmap = cmap, norm = norm)
+    ax, pm = wl.vis.plot_ppi(data, r, ax = ax, cmap = cmap, norm = norm)
     ax.set_xlabel('Distance (km)')
     ax.set_ylabel('Distance (km)')
     cb = fig.colorbar(pm, ax=ax, extend = 'neither')
