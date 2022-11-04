@@ -20,7 +20,7 @@ def ppi(data, prv, r=None):
         level = np.arange(-7, 9, 1)
         cb_label = '$Z_{DR}$'
     elif prv == 'phidp':
-        level = np.arange(0, 160, 10)
+        level = np.arange(0, 160, int(160/16))
         cb_label = '$\phi_{DP}$ ($\degree$)'
     elif prv == 'cc':
         data[data<0] = np.nan # 不会<0
