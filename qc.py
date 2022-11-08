@@ -1,7 +1,7 @@
+#%% basic info
 import numpy as np
 import netCDF4 as nc
 import os
-from scipy.optimize import curve_fit
 from scipy.signal import savgol_filter
 
 from vis import *
@@ -11,14 +11,15 @@ import datetime
 zh_nodata = -33
 zdr_nodata = -8.125
 phidp_nodata = -2
+kdp_nodata = -5
 cc_nodata = -0.025
 
 _t1 = datetime.datetime.now()
 
-#%% non meteor
+#%% non-meteor mask
 # =============================================================================
 # (1) 杨文宇. 基于天气雷达的城市降雨特征及临近预报研究. 博士, 清华大学, 2017.
-# 
+
 # =============================================================================
 def basic_mask(zh):
     mask_basic = np.zeros_like(zh)
@@ -44,7 +45,7 @@ def speck(zh:np.ndarray):
                 ir = k
                 
                 area = zhi[j-2:j+3, k-2:k+3].reshape(-1)
-                if  area[12] > -32 and len(area[area>-32]) <= 5: # is speck? 有，但周围有的不多，则是噪点
+                if  area[12] > -32 and len(area[area>-32]) <= 10: # is speck? 有，但周围有的不多，则是噪点
                     mask_speck[ie, ia, ir] = 1
 
         
@@ -81,10 +82,14 @@ def nmet(zh, phidp, cc):
         for ir in range(3, num_rad-3):
             sdphidp[ie, :, ir] = np.std(phidp[ie, :, ir-3:ir+4], axis = 1)
     
-    loc = np.where( (zh>=35) & (sdphidp>=10) & (cc<=0.95) )
+    loc = np.where( (zh>=35) & (cc<=0.95) & (sdphidp>=10) )
     mask_nmet[loc] = 1
-    loc = np.where( (zh<=35) & (sdphidp>=10) & (cc<=0.80) )
+    loc = np.where( (zh<=35) & (cc<=0.80) & (sdphidp>=10) )
     mask_nmet[loc] = 1
+    loc = np.where( (cc<=0.60) )
+    mask_nmet[loc] = 1
+
+    
 
     return mask_nmet
 #%% phidp QC
@@ -124,6 +129,8 @@ def LP(phidp):
         for ia in range(num_azi):
             y = phidp[ie, ia]
             y_ori = y[y>=0]
+            if len(y_ori)<10:
+                continue
             
             n = len(y_ori)
             # the five-point SavitzkyGolay (SG) second-order polynomial derivative filter
@@ -155,8 +162,22 @@ def LP(phidp):
             phidp_LP[ie, ia, np.where(y>=0)] = y_lp_sm
     
     return phidp_LP
-#%% kdp calculation
-
+#%% kdp reconstruction
+def kdp_def(phidp_qc, reso):
+    kdp_rec = np.zeros_like(phidp_qc)+kdp_nodata
+    num_ele, num_azi, num_rad = kdp_rec.shape
+    
+    for ie in range(num_ele):
+        for ia in range(num_azi):
+            y = phidp_qc[ie, ia]
+            loc = np.where(y>phidp_nodata)
+            if len(loc[0])<10:
+                continue
+            y = y[loc]
+            kdp = (y[1:]-y[:-1])/2/reso
+            kdp_rec[ie, ia, loc[0][1:]] = kdp
+            
+    return kdp_rec
 
 #%% attenuation
 # =============================================================================
@@ -164,22 +185,81 @@ def LP(phidp):
 
 # =============================================================================
 def zh_method(zh:np.ndarray, band:str):
+    zh_c = zh.copy()
+    
     if band == 's':
-        zh = zh
-    elif band == 'x':
-        
+        zh_c = zh_c
+    
+    return zh_c    
+# =============================================================================
+# (1) 马玉. 基于雨滴谱和雷达观测的北京城市降雨研究.
+# (1) Zhang, G. Weather Radar Polarimetry; CRC Press: Boca Raton, 2016. https://doi.org/10.1201/9781315374666.
 
-def kdp_method(phidp_qc, band:str):
+# =============================================================================
+def kdp_method(zh, zdr, phidp_qc, reso, band:str):
+    zh_c = zh.copy()
+    zdr_c = zdr.copy()
+    
     if band == 's':
-        zh = zh 
+        zh_c = zh_c
+        zdr_c = zdr_c
     elif band == 'x':
+        # 马
+        a = 0.285
+        b = 0.026
+        # Zhang
+        # a = 0.32
+        # b = 0.036
         
-
-#%% main
-if __name__ == '__main__':
-    # fname = '20180716/SA/nc/Z_RADR_I_Z9010_20180716000000_O_DOR_SA_CAP.nc'
-    # fname = '20180716/SA/nc/Z_RADR_I_Z9010_20180716004201_O_DOR_SA_CAP.nc'
-    fname = '20180716/SY/nc/BJXSY_20180716_000000.nc'
+        num_ele, num_azi, num_rad = phidp_qc.shape
+        for ie in range(num_ele):
+            for ia in range(num_azi):
+                y = phidp_qc[ie, ia]
+                if len(y[y>0])<10:
+                    continue
+                phidp0 = (y[y>0])[0]    
+                PIA = a*(y-phidp0)
+                PIADR = b*(y-phidp0)
+                for i in range(1, len(y)):
+                    if PIA[i]<0:
+                        PIA[i] = PIA[i-1]
+                    if PIADR[i]<0:
+                        PIADR[i] = PIADR[i-1]
+                loc = np.where(zh_c[ie, ia]>zh_nodata)
+                zh_c[ie, ia, loc] = zh_c[ie, ia, loc] + PIA[loc]
+                loc = np.where(zdr_c[ie, ia]>zdr_nodata)
+                zdr_c[ie, ia, loc] = zdr_c[ie, ia, loc] + PIADR[loc]
+        
+    elif band == 'c':
+        # Zhang
+        a = 0.11
+        b = 0.036
+        
+        num_ele, num_azi, num_rad = phidp_qc.shape
+        for ie in range(num_ele):
+            for ia in range(num_azi):
+                y = phidp_qc[ie, ia]
+                if len(y[y>0])<=10:
+                    continue
+                phidp0 = (y[y>0])[0]    
+                PIA = a*(y-phidp0)
+                PIADR = b*(y-phidp0)
+                for i in range(1, len(y)):
+                    if PIA[i]<0:
+                        PIA[i] = PIA[i-1]
+                    if PIADR[i]<0:
+                        PIADR[i] = PIADR[i-1]
+                loc = np.where(zh_c[ie, ia]>zh_nodata)
+                zh_c[ie, ia, loc] = zh_c[ie, ia, loc] + PIA[loc]
+                loc = np.where(zdr_c[ie, ia]>zdr_nodata)
+                zdr_c[ie, ia, loc] = zdr_c[ie, ia, loc] + PIADR[loc]
+    
+        
+    
+        
+    return zh_c, zdr_c
+#%% qc
+def qc(path, fname):
 
     if 'SA' in fname:
         band = 's'
@@ -191,18 +271,26 @@ if __name__ == '__main__':
         band = 'x'
         DP = True
     
-    f = nc.Dataset(fname, 'r')
+    fpath = os.path.join(path, fname)
+    f = nc.Dataset(fpath, 'a')
     if DP:
+        reso = f.spatial_reso
+        
         zh = np.array(f.variables['zh'])[[0,2,4,5,6,7,8,9,10]]
         zdr = np.array(f.variables['zdr'])[[0,2,4,5,6,7,8,9,10]]
         phidp = np.array(f.variables['phidp'])[[0,2,4,5,6,7,8,9,10]]
         cc = np.array(f.variables['cc'])[[0,2,4,5,6,7,8,9,10]]
     else:
+        reso = f.spatial_reso
+        
         zh = np.array(f.variables['zh'])
-    f.close()
+    # f.close()
 
 
     if DP == False:
+# =============================================================================
+#         qc
+# =============================================================================
         # ppi(zh[1], 'zh')
     
         mask_basic = basic_mask(zh)
@@ -213,12 +301,23 @@ if __name__ == '__main__':
         zh[mask_speck==1] = zh_nodata
         # ppi(zh[1], 'zh')
         
-        zh_method(zh, band = 's')
+        zh = zh_method(zh, band = 's')
         # ppi(zh[1], 'zh')
+# =============================================================================
+#         save
+# =============================================================================
+        f.createVariable('zh_qc', np.float64, ('ele', 'azi', 'gate'))
+        f.variables['zh_qc'][:] = zh        
+        
+        f.close()
+
     elif DP == True:
+# =============================================================================
+#         qc
+# =============================================================================
         # ppi(zh[1], 'zh')
         # ppi(zdr[1], 'zdr')
-        ppi(phidp[1], 'phidp')
+        # ppi(phidp[1], 'phidp')
         # ppi(cc[1], 'cc')
         
         mask_basic = basic_mask(zh)
@@ -248,12 +347,153 @@ if __name__ == '__main__':
         cc[mask_speck==1] = cc_nodata
         # ppi(zh[1], 'zh')
         # ppi(zdr[1], 'zdr')
-        ppi(phidp[1], 'phidp')
+        # ppi(phidp[1], 'phidp')
         # ppi(cc[1], 'cc')
         
-        phidp_qc = LP(phidp)
-        ppi(phidp_qc[1], 'phidp')
-
+        phidp = LP(phidp)
+        # ppi(phidp_qc[1], 'phidp')
+        
+        kdp = kdp_def(phidp, reso)
+        # ppi(kdp_rec[1],'kdp')
+        
+        zh, zdr = kdp_method(zh, zdr, phidp, reso, band)
+        # ppi(zh_c[1], 'zh')
+        # ppi(zdr_c[1], 'zdr')
+# =============================================================================
+#         save
+# =============================================================================
+        f.createVariable('zh_qc', np.float64, ('ele', 'azi', 'gate'))
+        f.variables['zh_qc'][[0,2,4,5,6,7,8,9,10]] = zh   
+        f.createVariable('zdr_qc', np.float64, ('ele', 'azi', 'gate'))
+        f.variables['zdr_qc'][[0,2,4,5,6,7,8,9,10]] = zdr   
+        f.createVariable('phidp_qc', np.float64, ('ele', 'azi', 'gate'))
+        f.variables['phidp_qc'][[0,2,4,5,6,7,8,9,10]] = phidp  
+        f.createVariable('kdp_qc', np.float64, ('ele', 'azi', 'gate'))
+        f.variables['kdp_qc'][[0,2,4,5,6,7,8,9,10]] = kdp  
+        f.createVariable('cc_qc', np.float64, ('ele', 'azi', 'gate'))
+        f.variables['cc_qc'][[0,2,4,5,6,7,8,9,10]] = cc
+        
+        f.close()
     
+#%% main
+if __name__ == '__main__':
+    # fname = '20180716/SA/nc/Z_RADR_I_Z9010_20180716000000_O_DOR_SA_CAP.nc'
+    # fname = '20180716/SA/nc/Z_RADR_I_Z9010_20180716004201_O_DOR_SA_CAP.nc'
+    # fname = '20180716/SY/nc2/BJXSY_20180716_000000.nc'
+    
+    path = '20180716/FS/nc'
+    ls = os.listdir(path)
+    
+    for fname in ls[:]:
+        if fname.endswith('nc'):
+            qc(path, fname)
+    
+    
+    # for idf in ls[2:]:
+    #     fname = path+idf
+    
+    #     if 'SA' in fname:
+    #         band = 's'
+    #         if 'SAD' in fname:
+    #             DP = True
+    #         else:
+    #             DP = False
+    #     elif 'BJX' in fname:
+    #         band = 'x'
+    #         DP = True
+        
+    #     f = nc.Dataset(fname, 'a')
+    #     if DP:
+    #         reso = f.spatial_reso
+            
+    #         zh = np.array(f.variables['zh'])[[0,2,4,5,6,7,8,9,10]]
+    #         zdr = np.array(f.variables['zdr'])[[0,2,4,5,6,7,8,9,10]]
+    #         phidp = np.array(f.variables['phidp'])[[0,2,4,5,6,7,8,9,10]]
+    #         cc = np.array(f.variables['cc'])[[0,2,4,5,6,7,8,9,10]]
+    #     else:
+    #         reso = f.spatial_reso
+            
+    #         zh = np.array(f.variables['zh'])
+    #     # f.close()
+    
+    
+    #     if DP == False:
+    #         # ppi(zh[1], 'zh')
+        
+    #         mask_basic = basic_mask(zh)
+    #         zh[mask_basic==1] = zh_nodata
+    #         # ppi(zh[1], 'zh')
+            
+    #         mask_speck = speck(zh)
+    #         zh[mask_speck==1] = zh_nodata
+    #         # ppi(zh[1], 'zh')
+            
+    #         zh = zh_method(zh, band = 's')
+    #         # ppi(zh[1], 'zh')
+            
+    #         f.createVariable('zh_qc', np.float64, ('ele', 'azi', 'gate'))
+    #         f.variables['zh_qc'][:] = zh        
+            
+    #         f.close()
+    
+    #     elif DP == True:
+    #         # ppi(zh[1], 'zh')
+    #         # ppi(zdr[1], 'zdr')
+    #         # ppi(phidp[1], 'phidp')
+    #         # ppi(cc[1], 'cc')
+            
+    #         mask_basic = basic_mask(zh)
+    #         zh[mask_basic==1] = zh_nodata
+    #         zdr[mask_basic==1] = zdr_nodata
+    #         phidp[mask_basic==1] = phidp_nodata
+    #         cc[mask_basic==1] = cc_nodata
+    #         # ppi(zh[1], 'zh')
+    #         # ppi(zdr[1], 'zdr')
+    #         # ppi(phidp[1], 'phidp')
+    #         # ppi(cc[1], 'cc')
+            
+    #         mask_nmet = nmet(zh, phidp, cc)
+    #         zh[mask_nmet==1] = zh_nodata
+    #         zdr[mask_nmet==1] = zdr_nodata
+    #         phidp[mask_nmet==1] = phidp_nodata
+    #         cc[mask_nmet==1] = cc_nodata
+    #         # ppi(zh[1], 'zh')
+    #         # ppi(zdr[1], 'zdr')
+    #         # ppi(phidp[1], 'phidp')
+    #         # ppi(cc[1], 'cc')
+            
+    #         mask_speck = speck(zh)
+    #         zh[mask_speck==1] = zh_nodata
+    #         zdr[mask_speck==1] = zdr_nodata
+    #         phidp[mask_speck==1] = phidp_nodata
+    #         cc[mask_speck==1] = cc_nodata
+    #         # ppi(zh[1], 'zh')
+    #         # ppi(zdr[1], 'zdr')
+    #         # ppi(phidp[1], 'phidp')
+    #         # ppi(cc[1], 'cc')
+            
+    #         phidp = LP(phidp)
+    #         # ppi(phidp_qc[1], 'phidp')
+            
+    #         kdp = kdp_def(phidp, reso)
+    #         # ppi(kdp_rec[1],'kdp')
+            
+    #         zh, zdr = kdp_method(zh, zdr, phidp, reso, band)
+    #         # ppi(zh_c[1], 'zh')
+    #         # ppi(zdr_c[1], 'zdr')
+            
+    #         f.createVariable('zh_qc', np.float64, ('ele', 'azi', 'gate'))
+    #         f.variables['zh_qc'][[0,2,4,5,6,7,8,9,10]] = zh   
+    #         f.createVariable('zdr_qc', np.float64, ('ele', 'azi', 'gate'))
+    #         f.variables['zdr_qc'][[0,2,4,5,6,7,8,9,10]] = zdr   
+    #         f.createVariable('phidp_qc', np.float64, ('ele', 'azi', 'gate'))
+    #         f.variables['phidp_qc'][[0,2,4,5,6,7,8,9,10]] = phidp  
+    #         f.createVariable('kdp_qc', np.float64, ('ele', 'azi', 'gate'))
+    #         f.variables['kdp_qc'][[0,2,4,5,6,7,8,9,10]] = kdp  
+    #         f.createVariable('cc_qc', np.float64, ('ele', 'azi', 'gate'))
+    #         f.variables['cc_qc'][[0,2,4,5,6,7,8,9,10]] = cc
+            
+    #         f.close()
+        
 _t2 = datetime.datetime.now()
 print(_t2-_t1)
