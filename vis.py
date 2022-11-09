@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import matplotlib.colors as colors
 import netCDF4 as nc
+import struct
 
 zh_nodata = -33
 zdr_nodata = -8.125
@@ -54,24 +55,30 @@ def ppi(data, prv, r=None):
 
 
 if __name__ == "__main__":
-    fnc = nc.Dataset('20180716/BJXFS_20180716_000000.nc', 'r')
-    zh = np.array(fnc.variables['zh'])[2]
-    zh_qc = np.array(fnc.variables['zh_qc'])[2]
-    grid_zh = np.array(fnc.variables['grid_zh'])[1]
-    # zdr = np.array(fnc.variables['zdr_qc'])[2]
-    # phidp = np.array(fnc.variables['phidp_qc'])[2]
-    # cc = np.array(fnc.variables['cc_qc'])[2]
-    fnc.close()
+    # fnc = nc.Dataset('20180716/BJXFS_20180716_000000.nc', 'r')
+    # zh = np.array(fnc.variables['zh'])[2]
+    # zh_qc = np.array(fnc.variables['zh_qc'])[2]
+    # grid_zh = np.array(fnc.variables['grid_zh'])[1]
+    # # zdr = np.array(fnc.variables['zdr_qc'])[2]
+    # # phidp = np.array(fnc.variables['phidp_qc'])[2]
+    # # cc = np.array(fnc.variables['cc_qc'])[2]
+    # fnc.close()
     
     # fnc = nc.Dataset('20180716/SA/nc/Z_RADR_I_Z9010_20180716013600_O_DOR_SA_CAP.nc', 'r')
     # zh = np.array(fnc.variables['zh'])[1][:, :230]
     # fnc.close()
     
-    ppi(zh, prv = 'zh', r = np.arange(0, 75, 0.075))
-    ppi(zh_qc, prv = 'zh', r = np.arange(0, 75, 0.075))
+    with open('out/BJXSY.20180716.003300qc.dat', 'rb') as data_file:    
+        values = np.array(struct.unpack('f'*(9*360*1000*5), data_file.read()))
+    size = 9*360*1000
+    zh = values[:size].reshape(9,360,1000)
+        # values = struct.unpack('f'*(9*360*1000), data_file.read(9*360*1000))
     
-    plt.figure(figsize=(10,10))
-    plt.pcolor(grid_zh)
+    ppi(zh[1], prv = 'zh', r = np.arange(0, 75, 0.075))
+    # ppi(zh_qc, prv = 'zh', r = np.arange(0, 75, 0.075))
+    
+    # plt.figure(figsize=(10,10))
+    # plt.pcolor(grid_zh)
     # ppi(zdr, prv = 'zdr', r = np.arange(1, 1001)*0.075)
     # ppi(phidp, prv = 'phidp', r = np.arange(1, 1001)*0.075)
     # ppi(cc, prv = 'cc', r = np.arange(1, 1001)*0.075)

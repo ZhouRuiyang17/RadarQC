@@ -1,11 +1,7 @@
-import os
 import numpy as np
-import netCDF4 as nc
+import struct
 import warnings
-from typing import Tuple
-from collections import OrderedDict
 warnings.filterwarnings("ignore")
-
 from vis import *
 #%%
 
@@ -299,12 +295,8 @@ def metstar_readar(dta_path):
 
     return siteinfo, taskinfo, eleinfo, radinfo, f
 
-def metstar_saver(save_path, save_name, site, task, ele, rad, data, num_ele = 11, num_rad = 360, num_gate = 1000):
-    '''
-    saver for MetSTAR (敏视达) in '.nc'
-        finished by Ruiyang
-    '''
-    
+def metstar_saver(new_fpath, site, task, elev, radi, data, num_ele = 9, num_rad = 360, num_gate = 1000):
+
     zh = np.zeros(shape=(num_ele,num_rad,num_gate))
     zdr = np.zeros(shape=(num_ele,num_rad,num_gate))
     phidp = np.zeros(shape=(num_ele,num_rad,num_gate))
@@ -314,17 +306,16 @@ def metstar_saver(save_path, save_name, site, task, ele, rad, data, num_ele = 11
     # 20210527, learn from Zhang Zhe
     ele = 0
     for ele_id in range(1,12):
-        flg1 = data['dbz'][ele_id]
-        flg2 = data['phidp'][ele_id]
-        flg3 = data['cc'][ele_id]
-        # 如果没有数据，则跳过此仰角
-        if flg1 == {} or flg2 == {} or flg3 == {} :
+        # vcp21用9个仰角扫描11次，其中前2个仰角扫了2次，但第2次都不作数
+        if ele_id == 2 or ele_id == 4:
+            continue
+        # 扫描出错，数据记为0，下一个
+        if  data['dbz'][ele_id] == {}:
             ele += 1
             continue
         
-        
         # 获取方位角
-        azi = np.array(rad[str(ele_id)]['azi'])
+        azi = np.array(radi[str(ele_id)]['azi'])
         # 对方位角排序
         rank = np.argsort(azi)
         # 四舍五入取整方位角
@@ -367,199 +358,17 @@ def metstar_saver(save_path, save_name, site, task, ele, rad, data, num_ele = 11
             # 因为i被填上，所以就计数+1
             c[radial] += 1
         ele += 1
-   
-    fnc = nc.Dataset(save_path+save_name+'.nc', 'a')
-    fnc.site_name = site['name']
-    fnc.site_code = site['code']
-    fnc.lon = site['lon']
-    fnc.lat = site['lat']
-    fnc.h_base = site['baseasl']
-    fnc.h_atenna = site['atennaasl']
-    fnc.beam_width_h = site['beamhwidth']
-    fnc.beam_width_v = site['beamvwidth']
-    fnc.freq = site['freq']
-    fnc.elevation = np.array([0.50, 0.50, 1.45, 1.45, 2.40, 3.35, 4.30, 6.00, 9.90, 14.60, 19.50])
-    fnc.spatial_reso = 0.075
     
-    fnc.createDimension('ele', num_ele)
-    fnc.createDimension('azi', num_rad)
-    fnc.createDimension('gate', num_gate)
-    
-    fnc.createVariable('zh', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['zh'][:] = zh
-    fnc.createVariable('zdr', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['zdr'][:] = zdr
-    fnc.createVariable('phidp', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['phidp'][:] = phidp
-    fnc.createVariable('kdp', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['kdp'][:] = kdp
-    fnc.createVariable('cc', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['cc'][:] = cc
-
-    fnc.close()
-    
-def metstar(path, save_path, f):
-    site, task, ele, rad, data=metstar_readar(path+f)
-    save_name = "_".join(f.split(".")[:-1])
-    metstar_saver(save_path, save_name, site, task, ele, rad, data)
-
-
-#%%
-AZIMUTH_RANGE = 360
-MAX_NUM_REF_RANGE_BIN = 460
-MAX_NUM_DOP_RANGE_BIN = 920
-DEFAULT_REF = -33.0
-DEFAULT_DOP = -64.5
-
-def elevation_mapping(elevation: float) -> float:
-    if elevation < 1.0:
-        elevation = 0.5
-    elif elevation >= 1.0 and elevation < 2.0:
-        elevation = 1.5
-    elif elevation >= 2.0 and elevation < 3.0:
-        elevation = 2.4
-    elif elevation >= 3.0 and elevation < 4.0:
-        elevation = 3.4
-    elif elevation >= 4.0 and elevation < 5.0:
-        elevation = 4.3
-    elif elevation >= 5.0 and elevation < 8.0:
-        elevation = 6.0
-    elif elevation > 8.0 and elevation < 12.0:
-        elevation = 9.9
-    elif elevation >= 12 and elevation < 18.0:
-        elevation = 14.6
-    elif elevation >= 18.0:
-        elevation = 19.5
-    return elevation
-
-
-def azimuth_mapping(azimuth: float) -> float:
-    azimuth = float(round(azimuth))
-    if azimuth >= AZIMUTH_RANGE:
-        azimuth = azimuth - AZIMUTH_RANGE
-    return azimuth
-
-
-def read_radar_bin(path: str) -> Tuple[np.ndarray, np.ndarray]:
-    size = os.path.getsize(path)
-    num_scans = size // 2432
-    
-    with open(path, 'rb') as f:
-        total_data = {}
-        
-        for i in range(num_scans):
-            # Header
-            f.seek(28, 1)
-
-            # Basic information
-            milliseconds = int.from_bytes(f.read(4), 'little')
-            days = int.from_bytes(f.read(2), 'little')
-            unambiguous_distance = int.from_bytes(f.read(2), 'little') / 10.0
-
-            # Crucial information
-            azimuth = int.from_bytes(f.read(2), 'little') / 8.0 * 180.0 / 4096.0
-            azimuth = azimuth_mapping(azimuth)
-            radial_order = int.from_bytes(f.read(2), 'little')
-            radial_status = int.from_bytes(f.read(2), 'little')
-            elevation = int.from_bytes(f.read(2), 'little') / 8.0 * 180.0 / 4096.0
-            elevation = elevation_mapping(elevation)
-            num_elevations = int.from_bytes(f.read(2), 'little')
-            f.seek(8, 1)
-            # ref_1st_range_bin = int.from_bytes(f.read(2), 'little')
-            # dop_1st_range_bin = int.from_bytes(f.read(2), 'little')
-            # ref_range_bin_distance = int.from_bytes(f.read(2), 'little')
-            # dop_range_bin_distance = int.from_bytes(f.read(2), 'little')
-            num_ref_range_bin = int.from_bytes(f.read(2), 'little')
-            num_dop_range_bin = int.from_bytes(f.read(2), 'little')
-            f.seek(4, 1)
-            # num_sector = int.from_bytes(f.read(2), 'little')
-            # correction_coefficient = int.from_bytes(f.read(4), 'little')
-            f.seek(6, 1)
-            # ref_pointer = int.from_bytes(f.read(2), 'little')
-            # dop_pointer = int.from_bytes(f.read(2), 'little')
-            # width_pointer = int.from_bytes(f.read(2), 'little')
-            f.seek(4, 1)
-            # dop_speed_res = int.from_bytes(f.read(2), 'little') / 4.0
-            # vcp_mode = int.from_bytes(f.read(2), 'little')
-            f.seek(8, 1)
-            f.seek(6, 1)
-            # ref_rev_pointer = int.from_bytes(f.read(2), 'little')
-            # dop_rev_pointer = int.from_bytes(f.read(2), 'little')
-            # width_rev_pointer = int.from_bytes(f.read(2), 'little')
-            nyquist_speed = int.from_bytes(f.read(2), 'little') / 100.0
-            f.seek(38, 1)
-
-            if radial_order == 1:
-                if not elevation in total_data.keys():
-                    total_data[elevation] = {}
-                    for a in range(AZIMUTH_RANGE):
-                        total_data[elevation][a] = np.ones(MAX_NUM_REF_RANGE_BIN) * DEFAULT_REF
-
-            # Reflectivity
-            refs = np.ones(MAX_NUM_REF_RANGE_BIN) * DEFAULT_REF
-            if num_ref_range_bin > 0:
-                for n in range(num_ref_range_bin):
-                    ref = (int.from_bytes(f.read(1), 'little') - 2) / 2 - 32.0
-                    refs[n] = ref
-                total_data[elevation][azimuth] = refs
-            
-            # Doppler speed
-            f.seek(num_dop_range_bin, 1)
-            
-            # Spectrual width
-            f.seek(num_dop_range_bin, 1)
-            
-            # Tail
-            pointer = f.tell()
-            f.seek(2432 * (i + 1) - pointer, 1)
-
-        ordered_total_data = {}
-        for e in total_data.keys():
-            ordered_total_data[e] = np.array(list(OrderedDict(sorted(total_data[e].items(), key=lambda x: x[0])).values()))
-
-        elevations = np.array(list(ordered_total_data.keys()))
-        reflectivities = np.stack(list(ordered_total_data.values()))
-
-    return elevations, reflectivities    
-
-def sa_saver(save_path, save_name, zh, num_ele = 9, num_rad = 360, num_gate = 460):
-    fnc = nc.Dataset(save_path+save_name+'.nc', 'a')
-    fnc.elevation = np.array([0.50, 0.50, 1.45, 1.45, 2.40, 3.35, 4.30, 6.00, 9.90, 14.60, 19.50])
-    fnc.spatial_reso = 1
-    fnc.site_name = 'Beijing'
-    fnc.site_code = save_name[9:14]
-    
-    fnc.createDimension('ele', num_ele)
-    fnc.createDimension('azi', num_rad)
-    fnc.createDimension('gate', num_gate)
-    
-    fnc.createVariable('zh', np.float64, ('ele', 'azi', 'gate'))
-    fnc.variables['zh'][:] = zh
-    
-    fnc.close()
-
-    
-def sa(path, save_path, f):
-    _, zh_9 = read_radar_bin(path+f)
-    save_name = f[:-4]
-    sa_saver(save_path, save_name, zh_9)
-
-#%%
-if __name__ == "__main__":
-    
-    
-    path = "20180716/FS/raw/"
-    save_path = "20180716/FS/nc/"
-    
-    # path = "20180716/"
-    # save_path = "20180716/"
-  
-    files = os.listdir(path)
+    with open(new_fpath, 'wb') as new_file:
+        new_file.write(struct.pack('f'*len(zh.flatten()), *zh.flatten()))
+        new_file.write(struct.pack('f'*len(zdr.flatten()), *zdr.flatten()))
+        new_file.write(struct.pack('f'*len(phidp.flatten()), *phidp.flatten()))
+        new_file.write(struct.pack('f'*len(kdp.flatten()), *kdp.flatten()))
+        new_file.write(struct.pack('f'*len(cc.flatten()), *cc.flatten()))
   
     
-    for f in files[1:]:
-        if f.endswith(".AR2"):
-            metstar(path, save_path, f)
-        # if f.endswith('.bin'):
-            # sa(path, save_path, f)
-    
+def metstar(fpath, new_fpath):
+    site, task, ele, rad, data=metstar_readar(fpath)
+    metstar_saver(new_fpath, site, task, ele, rad, data)
+
+
