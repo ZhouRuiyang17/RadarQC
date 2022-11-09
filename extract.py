@@ -3,11 +3,13 @@ import netCDF4 as nc
 import numpy as np
 import pandas as pd
 
-dsd = pd.read_excel('dsd-BJXFS.xlsx')
-sites = (dsd.values)[:, 0]
-xs = (dsd.values)[:, -2]*1000 # km->m
-ys = (dsd.values)[:, -1]*1000
-
+dsd = pd.read_excel('disdrometer.xlsx', sheet_name='BJXSY')
+sites = (dsd.values)[:20, 0]
+# xs = (dsd.values)[:, 5]
+# ys = (dsd.values)[:, 6]
+thetas = (dsd.values)[:20, 7].astype(np.float64)
+ranges = (dsd.values)[:20, 8].astype(np.float64)/1000
+ranges_gate = (ranges/0.075).astype(np.int64)
 #%%
 
 path = '20180716/FS/nc'
