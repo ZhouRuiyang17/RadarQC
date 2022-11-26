@@ -295,7 +295,7 @@ def metstar_readar(dta_path):
 
     return siteinfo, taskinfo, eleinfo, radinfo, f
 
-def metstar_saver(new_fpath, site, task, elev, radi, data, num_ele = 9, num_rad = 360, num_gate = 1000):
+def metstar_saver(site, task, elev, radi, data, num_ele = 9, num_rad = 360, num_gate = 1000):
 
     zh = np.zeros(shape=(num_ele,num_rad,num_gate))
     zdr = np.zeros(shape=(num_ele,num_rad,num_gate))
@@ -359,16 +359,12 @@ def metstar_saver(new_fpath, site, task, elev, radi, data, num_ele = 9, num_rad 
             c[radial] += 1
         ele += 1
     
-    with open(new_fpath, 'wb') as new_file:
-        new_file.write(struct.pack('f'*len(zh.flatten()), *zh.flatten()))
-        new_file.write(struct.pack('f'*len(zdr.flatten()), *zdr.flatten()))
-        new_file.write(struct.pack('f'*len(phidp.flatten()), *phidp.flatten()))
-        new_file.write(struct.pack('f'*len(kdp.flatten()), *kdp.flatten()))
-        new_file.write(struct.pack('f'*len(cc.flatten()), *cc.flatten()))
+ 
+    return zh, zdr, phidp, kdp, cc
   
-    
-def metstar(fpath, new_fpath):
+# ---- submain
+def metstar(fpath):
     site, task, ele, rad, data=metstar_readar(fpath)
-    metstar_saver(new_fpath, site, task, ele, rad, data)
-
+    zh, zdr, phidp, kdp, cc = metstar_saver(site, task, ele, rad, data)
+    return zh, zdr, phidp, kdp, cc
 

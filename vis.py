@@ -68,13 +68,14 @@ if __name__ == "__main__":
     # zh = np.array(fnc.variables['zh'])[1][:, :230]
     # fnc.close()
     
-    with open('out/BJXSY.20180716.003300qc.dat', 'rb') as data_file:    
+    with open('test/BJXSY.20180716.003300qc.dat', 'rb') as data_file:    
         values = np.array(struct.unpack('f'*(9*360*1000*5), data_file.read()))
     size = 9*360*1000
-    zh = values[:size].reshape(9,360,1000)
+    i = 2
+    data = values[i*size:(i+1)*size].reshape(9,360,1000)
         # values = struct.unpack('f'*(9*360*1000), data_file.read(9*360*1000))
     
-    ppi(zh[1], prv = 'zh', r = np.arange(0, 75, 0.075))
+    ppi(data[1], prv = 'phidp', r = np.arange(0, 75, 0.075))
     # ppi(zh_qc, prv = 'zh', r = np.arange(0, 75, 0.075))
     
     # plt.figure(figsize=(10,10))

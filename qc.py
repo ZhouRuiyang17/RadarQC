@@ -256,102 +256,54 @@ def kdp_method(zh, zdr, phidp_qc, reso, band:str):
         
     return zh_c, zdr_c
 #%% qc
-def qc(fpath, new_fpath, band, reso, dp):
-  
-    if dp:
-        with open(fpath, 'rb') as data_file:    
-            values = np.array(struct.unpack('f'*(9*360*1000*5), data_file.read()))
-        size = 9*360*1000
-        zh = values[:size].reshape(9,360,1000)
-        zdr = values[size:2*size].reshape(9,360,1000)
-        phidp = values[2*size:3*size].reshape(9,360,1000)
-        # kdp = values[3*size:4*size].reshape(9,360,1000)
-        cc = values[4*size:5*size].reshape(9,360,1000)
-
-    else:
-        with open(fpath, 'rb') as data_file:    
-            values = np.array(struct.unpack('f'*(9*360*1000), data_file.read()))
-        size = 9*360*1000
-        zh = values[:size].reshape(9,360,1000)
+# ---- sub_main
+def qc_dual(zh, zdr, phidp, kdp, cc, band, reso):
 
 
-    if dp == False:
-# =============================================================================
-#         qc
-# =============================================================================
-        # ppi(zh[1], 'zh')
+    # ppi(zh[1], 'zh')
+    # ppi(zdr[1], 'zdr')
+    # ppi(phidp[1], 'phidp')
+    # ppi(cc[1], 'cc')
     
-        mask_basic = basic_mask(zh)
-        zh[mask_basic==1] = zh_nodata
-        # ppi(zh[1], 'zh')
-        
-        mask_speck = speck(zh)
-        zh[mask_speck==1] = zh_nodata
-        # ppi(zh[1], 'zh')
-        
-        zh = zh_method(zh, band = 's')
-        # ppi(zh[1], 'zh')
-# =============================================================================
-#         save
-# =============================================================================
-        with open(new_fpath, 'wb') as new_file:
-            new_file.write(struct.pack('f'*len(zh.flatten()), *zh.flatten()))
-           
-    elif dp == True:
-# =============================================================================
-#         qc
-# =============================================================================
-        # ppi(zh[1], 'zh')
-        # ppi(zdr[1], 'zdr')
-        # ppi(phidp[1], 'phidp')
-        # ppi(cc[1], 'cc')
-        
-        mask_basic = basic_mask(zh)
-        zh[mask_basic==1] = zh_nodata
-        zdr[mask_basic==1] = zdr_nodata
-        phidp[mask_basic==1] = phidp_nodata
-        cc[mask_basic==1] = cc_nodata
-        # ppi(zh[1], 'zh')
-        # ppi(zdr[1], 'zdr')
-        # ppi(phidp[1], 'phidp')
-        # ppi(cc[1], 'cc')
-        
-        mask_nmet = nmet(zh, phidp, cc)
-        zh[mask_nmet==1] = zh_nodata
-        zdr[mask_nmet==1] = zdr_nodata
-        phidp[mask_nmet==1] = phidp_nodata
-        cc[mask_nmet==1] = cc_nodata
-        # ppi(zh[1], 'zh')
-        # ppi(zdr[1], 'zdr')
-        # ppi(phidp[1], 'phidp')
-        # ppi(cc[1], 'cc')
-        
-        mask_speck = speck(zh)
-        zh[mask_speck==1] = zh_nodata
-        zdr[mask_speck==1] = zdr_nodata
-        phidp[mask_speck==1] = phidp_nodata
-        cc[mask_speck==1] = cc_nodata
-        # ppi(zh[1], 'zh')
-        # ppi(zdr[1], 'zdr')
-        # ppi(phidp[1], 'phidp')
-        # ppi(cc[1], 'cc')
-        
-        phidp = LP(phidp)
-        # ppi(phidp_qc[1], 'phidp')
-        
-        kdp = kdp_def(phidp, reso)
-        # ppi(kdp_rec[1],'kdp')
-        
-        zh, zdr = kdp_method(zh, zdr, phidp, reso, band)
-        # ppi(zh_c[1], 'zh')
-        # ppi(zdr_c[1], 'zdr')
-# =============================================================================
-#         save
-# =============================================================================
-        with open(new_fpath, 'wb') as new_file:
-            new_file.write(struct.pack('f'*len(zh.flatten()), *zh.flatten()))
-            new_file.write(struct.pack('f'*len(zdr.flatten()), *zdr.flatten()))
-            new_file.write(struct.pack('f'*len(phidp.flatten()), *phidp.flatten()))
-            new_file.write(struct.pack('f'*len(kdp.flatten()), *kdp.flatten()))
-            new_file.write(struct.pack('f'*len(cc.flatten()), *cc.flatten()))
+    mask_basic = basic_mask(zh)
+    zh[mask_basic==1] = zh_nodata
+    zdr[mask_basic==1] = zdr_nodata
+    phidp[mask_basic==1] = phidp_nodata
+    cc[mask_basic==1] = cc_nodata
+    # ppi(zh[1], 'zh')
+    # ppi(zdr[1], 'zdr')
+    # ppi(phidp[1], 'phidp')
+    # ppi(cc[1], 'cc')
+    
+    mask_nmet = nmet(zh, phidp, cc)
+    zh[mask_nmet==1] = zh_nodata
+    zdr[mask_nmet==1] = zdr_nodata
+    phidp[mask_nmet==1] = phidp_nodata
+    cc[mask_nmet==1] = cc_nodata
+    # ppi(zh[1], 'zh')
+    # ppi(zdr[1], 'zdr')
+    # ppi(phidp[1], 'phidp')
+    # ppi(cc[1], 'cc')
+    
+    mask_speck = speck(zh)
+    zh[mask_speck==1] = zh_nodata
+    zdr[mask_speck==1] = zdr_nodata
+    phidp[mask_speck==1] = phidp_nodata
+    cc[mask_speck==1] = cc_nodata
+    # ppi(zh[1], 'zh')
+    # ppi(zdr[1], 'zdr')
+    # ppi(phidp[1], 'phidp')
+    # ppi(cc[1], 'cc')
+    
+    phidp = LP(phidp)
+    # ppi(phidp_qc[1], 'phidp')
+    
+    kdp = kdp_def(phidp, reso)
+    # ppi(kdp_rec[1],'kdp')
+    
+    zh, zdr = kdp_method(zh, zdr, phidp, reso, band)
+    # ppi(zh_c[1], 'zh')
+    # ppi(zdr_c[1], 'zdr')
+
+    return zh, zdr, phidp, kdp, cc
     
