@@ -2,7 +2,6 @@ import numpy as np
 import struct
 import warnings
 warnings.filterwarnings("ignore")
-from vis import *
 #%%
 
 def metstar_readar(dta_path):

@@ -1,7 +1,6 @@
 #%% basic info
 import numpy as np
 import struct
-from vis import *
 import datetime
 
 
